@@ -23,6 +23,7 @@ and SQL database
 """
 import sys
 from flask import Flask
+from flask_migrate import Migrate
 from service import config
 from service.common import log_handlers
 
@@ -50,6 +51,7 @@ app.logger.info(70 * "*")
 
 try:
     models.init_db(app)  # make our sqlalchemy tables
+    migrate = Migrate(app, models.db)  # Initialize Flask-Migrate
 except Exception as error:  # pylint: disable=broad-except
     app.logger.critical("%s: Cannot continue", error)
     # gunicorn requires exit code 4 to stop spawning workers when they die

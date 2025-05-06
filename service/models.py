@@ -42,7 +42,10 @@ db = SQLAlchemy()
 
 def init_db(app):
     """Initialize the SQLAlchemy app"""
-    Product.init_db(app)
+    # This is where we initialize SQLAlchemy from the Flask app
+    db.init_app(app)
+    app.app_context().push()
+    db.create_all()  # make our sqlalchemy tables
 
 
 class DataValidationError(Exception):
@@ -130,44 +133,35 @@ class Product(db.Model):
             data (dict): A dictionary containing the Product data
         """
         try:
+            if not isinstance(data["name"], str):
+                raise TypeError("name must be a string")
+            if not isinstance(data["description"], str):
+                raise TypeError("description must be a string")
+            if not isinstance(data["price"], (str, int, float, Decimal)):
+                raise TypeError("price must be a number")
+            if not isinstance(data["available"], bool):
+                raise TypeError("available must be a boolean")
+            if not isinstance(data["category"], str):
+                raise TypeError("category must be a string")
+
             self.name = data["name"]
             self.description = data["description"]
-            self.price = Decimal(data["price"])
-            if isinstance(data["available"], bool):
-                self.available = data["available"]
-            else:
-                raise DataValidationError(
-                    "Invalid type for boolean [available]: "
-                    + str(type(data["available"]))
-                )
+            self.price = Decimal(str(data["price"]))
+            self.available = data["available"]
             self.category = getattr(Category, data["category"])  # create enum from string
         except AttributeError as error:
             raise DataValidationError("Invalid attribute: " + error.args[0]) from error
         except KeyError as error:
             raise DataValidationError("Invalid product: missing " + error.args[0]) from error
         except TypeError as error:
-            raise DataValidationError(
-                "Invalid product: body of request contained bad or no data " + str(error)
-            ) from error
+            raise DataValidationError(str(error)) from error
+        except ValueError as error:
+            raise DataValidationError("Invalid value: " + str(error)) from error
         return self
 
     ##################################################
     # CLASS METHODS
     ##################################################
-
-    @classmethod
-    def init_db(cls, app: Flask):
-        """Initializes the database session
-
-        :param app: the Flask app
-        :type data: Flask
-
-        """
-        logger.info("Initializing database")
-        # This is where we initialize SQLAlchemy from the Flask app
-        db.init_app(app)
-        app.app_context().push()
-        db.create_all()  # make our sqlalchemy tables
 
     @classmethod
     def all(cls) -> list:
@@ -187,7 +181,7 @@ class Product(db.Model):
 
         """
         logger.info("Processing lookup for id %s ...", product_id)
-        return cls.query.get(product_id)
+        return db.session.get(cls, product_id)
 
     @classmethod
     def find_by_name(cls, name: str) -> list:
@@ -225,7 +219,7 @@ class Product(db.Model):
         """Returns all Products by their availability
 
         :param available: True for products that are available
-        :type available: str
+        :type available: bool
 
         :return: a collection of Products that are available
         :rtype: list
@@ -238,7 +232,7 @@ class Product(db.Model):
     def find_by_category(cls, category: Category = Category.UNKNOWN) -> list:
         """Returns all Products by their Category
 
-        :param category: values are ['MALE', 'FEMALE', 'UNKNOWN']
+        :param category: values are ['UNKNOWN', 'CLOTHS', 'FOOD', 'HOUSEWARES', 'AUTOMOTIVE', 'TOOLS']
         :type available: enum
 
         :return: a collection of Products that are available
